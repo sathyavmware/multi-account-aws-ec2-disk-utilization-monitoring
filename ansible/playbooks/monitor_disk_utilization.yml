@@ -1,0 +1,81 @@
+---
+- name: Monitor Disk Utilization Across Multiple AWS Accounts
+  hosts: localhost
+  gather_facts: no
+  vars:
+    aws_accounts:
+      - id: 123456789012
+        region: us-east-1
+        role_arn: arn:aws:iam::123456789012:role/EC2MonitoringRole
+      - id: 234567890123
+        region: us-west-1
+        role_arn: arn:aws:iam::234567890123:role/EC2MonitoringRole
+      - id: 345678901234
+        region: eu-west-1
+        role_arn: arn:aws:iam::345678901234:role/EC2MonitoringRole
+
+  tasks:
+    - name: Assume Role in Each AWS Account
+      aws_assume_role:
+        role_arn: "{{ item.role_arn }}"
+        role_session_name: "DiskUtilizationSession"
+        duration_seconds: 3600
+      register: assumed_role
+      loop: "{{ aws_accounts }}"
+
+    - name: Fetch EC2 Instance IDs
+      aws_ec2_info:
+        region: "{{ item.region }}"
+        aws_access_key: "{{ assumed_role.results[loop.index0].sts_creds.access_key }}"
+        aws_secret_key: "{{ assumed_role.results[loop.index0].sts_creds.secret_key }}"
+        security_token: "{{ assumed_role.results[loop.index0].sts_creds.session_token }}"
+      register: ec2_instances
+      loop: "{{ aws_accounts }}"
+
+    - name: Collect Disk Utilization Metrics
+      shell: >
+        aws cloudwatch get-metric-data
+        --region {{ item.region }}
+        --metric-data-queries file://metric_data_queries.json
+        --start-time $(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ)
+        --end-time $(date -u +%Y-%m-%dT%H:%M:%SZ)
+        --output json
+      register: disk_utilization
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ assumed_role.results[loop.index0].sts_creds.access_key }}"
+        AWS_SECRET_ACCESS_KEY: "{{ assumed_role.results[loop.index0].sts_creds.secret_key }}"
+        AWS_SESSION_TOKEN: "{{ assumed_role.results[loop.index0].sts_creds.session_token }}"
+      loop: "{{ aws_accounts }}"
+
+    - name: Store Disk Utilization Data in S3
+      aws_s3:
+        bucket: my-centralized-data-bucket
+        object: disk_utilization/{{ item.region }}_{{ ansible_date_time.iso8601 }}.json
+        src: /tmp/disk_utilization_{{ item.region }}.json
+        mode: put
+      loop: "{{ disk_utilization.results }}"
+
+    - name: Generate Report
+      shell: >
+        python generate_report.py
+        --bucket my-centralized-data-bucket
+        --output report.html
+      register: report
+
+    - name: Upload Report to S3
+      aws_s3:
+        bucket: my-centralized-data-bucket
+        object: reports/report_{{ ansible_date_time.iso8601 }}.html
+        src: /tmp/report.html
+        mode: put
+
+    - name: Notify via Email
+      mail:
+        host: smtp.example.com
+        port: 587
+        username: user@example.com
+        password: password
+        to: cto@example.com
+        subject: Disk Utilization Report
+        body: "Please find the attached disk utilization report."
+        attach: /tmp/report.html
