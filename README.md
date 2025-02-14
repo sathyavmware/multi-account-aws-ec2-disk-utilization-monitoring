@@ -40,6 +40,37 @@ This project provides a solution to monitor disk utilization across multiple AWS
        ]
    }
 
+
+## Usage
+
+1. **Run the Ansible Playbook:**
+
+ansible-playbook -i ansible/inventory ansible/playbooks/monitor_disk_utilization.yml
+
+1. **View the Report:**
+The report will be generated and uploaded to the S3 bucket. You can view it by navigating to the S3 bucket or accessing the link sent via email.
+
+## Components
+
+1. **IAM Roles and Cross-Account Role Assumption:**
+IAM roles are created in each AWS account to allow the Ansible control machine to assume them.
+Trust relationships are set up to allow the Ansible control machine to assume the roles.
+
+2. **Ansible Control Machine:**
+The Ansible control machine runs the playbook to collect disk utilization data.
+It assumes the IAM roles in each AWS account to gain access to the necessary resources.
+
+3. **AWS SDK for Python (Boto3):**
+Boto3 is used to interact with AWS services such as EC2, CloudWatch, and S3.
+
+4. **Centralized Data Store:**
+S3 is used to store the collected disk utilization data.
+RDS can be used for more complex data storage and querying needs.
+
+5. **Monitoring and Reporting Dashboard:**
+A Python script (generate_report.py) is used to generate a report from the collected data.
+The report is stored in S3 and can be accessed via a web interface or sent via email.
+
 ## Set the trust relationship to allow the Ansible control machine to assume the role:
    
    ```json
