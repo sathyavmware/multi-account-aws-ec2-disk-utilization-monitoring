@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Disk Utilization Report</title>
+</head>
+<body>
+    <h1>Disk Utilization Report</h1>
+    <table border="1">
+        <tr>
+            <th>Region</th>
+            <th>Instance ID</th>
+            <th>Disk Utilization (%)</th>
+        </tr>
+        {% for item in data %}
+        <tr>
+            <td>{{ item.region }}</td>
+            <td>{{ item.instance_id }}</td>
+            <td>{{ item.disk_utilization }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
